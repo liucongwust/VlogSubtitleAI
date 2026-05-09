@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Vlog AI Studio Pro</title>
+    <style>
+        :root { --accent: #0A84FF; --bg: #1c1c1e; --sidebar: #2c2c2e; --panel: #2c2c2e; --text: #f5f5f7; --gray: #8e8e93; --done: #32D74B; --bili: #ff6699; --border: #38383a; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); overflow: hidden; -webkit-font-smoothing: antialiased; }
+        .app-container { display: flex; height: 100vh; width: 100vw; }
+        
+        /* Mac style scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+        .sidebar { width: 280px; background: rgba(44, 44, 46, 0.85); backdrop-filter: blur(20px); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 15px; gap: 12px; overflow-y: auto; }
+        .logo-container { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; padding-left: 5px; }
+        .logo-img { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
+        .logo-text { font-weight: 800; font-size: 18px; color: #fff; letter-spacing: -0.5px; }
+        
+        .step-card { background: rgba(255,255,255,0.03); border-radius: 16px; padding: 18px; border: 1px solid transparent; cursor: pointer; transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1); position: relative; }
+        .step-card:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .step-card.active { border-color: rgba(10, 132, 255, 0.3); background: rgba(10, 132, 255, 0.08); box-shadow: 0 4px 15px rgba(10, 132, 255, 0.1); }
+        .step-card.done { border-left: 4px solid var(--done); border-radius: 4px 16px 16px 4px; }
+        .step-title { font-size: 11px; font-weight: 700; color: var(--gray); margin-bottom: 8px; letter-spacing: 0.5px; }
+        .step-card.active .step-title { color: var(--accent); }
+        .step-card.done .step-title { color: var(--done); }
+        .step-desc { font-size: 15px; font-weight: 600; color: #fff; }
+        .step-controls { margin-top: 15px; display: none; flex-direction: column; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; }
+        .step-card.active .step-controls { display: flex; }
+        
+        .input-mini { background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: #fff; padding: 10px 12px; border-radius: 10px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+        .input-mini:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.2); }
+        
+        .btn-mini { background: var(--accent); color: white; border: none; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; }
+        .btn-mini:hover { filter: brightness(1.15); transform: scale(0.98); }
+        .btn-mini.success { background: var(--done); }
+        
+        .center-panel { flex: 1; display: flex; flex-direction: column; background: #000; }
+        .video-container { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; overflow: hidden; box-shadow: inset 0 0 50px rgba(0,0,0,0.8); }
+        video { width: 100%; height: 100%; object-fit: contain; }
+        #fileInfo { padding: 12px 25px; font-size: 12px; color: var(--gray); border-top: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--bg); }
+        
+        .right-panel { width: 420px; background: rgba(44, 44, 46, 0.85); backdrop-filter: blur(20px); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+        .panel-header { padding: 20px 25px; background: transparent; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+        .sub-list { flex: 1; overflow-y: auto; padding: 15px 20px; }
+        .sub-row { padding: 16px; border-bottom: 1px solid var(--border); border-radius: 14px; margin-bottom: 12px; background: rgba(255,255,255,0.02); cursor: pointer; transition: background 0.2s; }
+        .sub-row:hover { background: rgba(255,255,255,0.04); }
+        .sub-row.active { background: rgba(10, 132, 255, 0.1); border-left: 4px solid var(--accent); border-radius: 4px 14px 14px 4px; }
+        
+        textarea { width: 100%; background: rgba(0,0,0,0.2); border: 1px solid transparent; color: #fff; padding: 12px; border-radius: 10px; resize: none; font-size: 14px; box-sizing: border-box; line-height: 1.5; transition: all 0.2s; }
+        textarea:focus { background: rgba(0,0,0,0.4); border-color: var(--accent); outline: none; }
+        textarea.en { color: #98989d; font-size: 13px; margin-top: 10px; }
+        
+        #overlay { position: fixed; top:0; left:280px; right:0; bottom:0; background:rgba(28, 28, 30, 0.7); z-index:5000; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter: blur(15px); }
+        .progress-bar { width: 300px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 30px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #0A84FF, #32D74B); width: 0%; transition: 0.3s ease-out; border-radius: 4px; }
+        .save-toast { background: var(--done); color: white; font-size: 11px; padding: 4px 10px; border-radius: 6px; display: none; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div id="overlay">
+        <h2 id="loaderText" style="font-weight: 200; letter-spacing: 5px;">PROCESSING</h2>
+        <p id="loaderHint" style="font-size: 12px; color: #888; margin-top: 10px; text-align: center; max-width: 400px; line-height: 1.6;"></p>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <button id="closeOverlayBtn" onclick="dismissError()" style="display:none; margin-top:30px; background:#333; color:#fff; border:none; padding:12px 40px; border-radius:8px; cursor:pointer; font-weight:bold;">关闭并重置状态</button>
+    </div>
+
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="logo-container">
+                <img src="/logo.png" class="logo-img" alt="Logo">
+                <span class="logo-text">VLOG STUDIO</span>
+            </div>
+            <div class="step-card" id="card-download" onclick="selectCard('idle')">
+                <div class="step-title">01 DATA SOURCE</div><div class="step-desc">导入视频或链接</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <button id="btn-bili-login" class="btn-mini" style="background:var(--bili);" onclick="openLoginModal()">B站账号登录</button>
+                    <div style="display:flex; gap:8px;"><input type="text" id="pathInput" class="input-mini" style="flex:1;" placeholder="链接 或 路径..."><button class="btn-mini" style="background:#333;" onclick="selectLocalFile()">📂</button></div>
+                    <button class="btn-mini" onclick="handleLoad()">确认加载</button>
+                </div>
+            </div>
+
+            <div class="step-card" id="card-asr" onclick="selectCard('asr')">
+                <div class="step-title">02 RECOGNITION</div><div class="step-desc">语音识别 (ASR)</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <div style="display: flex; gap: 5px;">
+                        <select id="asrModelSelect" class="input-mini" style="flex: 1;" onchange="onModelChange()">
+                            <option value="tiny">Tiny (极速)</option>
+                            <option value="base">Base (平衡)</option>
+                            <option value="small">Small (高精度)</option>
+                            <option value="medium">Medium (专业)</option>
+                            <option value="large-v3">Large-V3 (极致)</option>
+                        </select>
+                        <button id="btn-download-model" class="btn-mini" style="background:#333; padding:0 8px; width:auto;" onclick="handleDownloadModel()">提前下载</button>
+                    </div>
+                    <div id="modelStatusArea" style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; font-size:10px; border:1px solid #222; margin-top:5px;">
+                        <div id="modelStatusIcon" style="color:var(--gray); margin-bottom:5px;">● 检测模型中...</div>
+                        <div id="modelPathText" style="word-break:break-all; opacity:0.5; font-family:monospace;">-</div>
+                    </div>
+                    <div style="display:flex; gap:5px; margin-top:5px;">
+                        <button class="btn-mini" style="flex:1; background:rgba(255,255,255,0.1);" onclick="openModelFolder()">📂 打开目录</button>
+                        <button class="btn-mini" style="flex:1; background:rgba(255,255,255,0.1);" onclick="selectModelDir()">⚙️ 更改目录</button>
+                    </div>
+                    <button id="btn-asr" class="btn-mini" style="margin-top:5px;" onclick="handleASR()">启动 ASR 识别任务</button>
+                </div>
+            </div>
+
+            <div class="step-card" id="card-edit_zh" onclick="selectCard('edit_zh')">
+                <div class="step-title">03 ZH REVIEW</div><div class="step-desc">中文原句校对</div>
+                <div class="step-controls" onclick="event.stopPropagation()"><button class="btn-mini" style="background:var(--done);" onclick="manualSetStep('translating')">校对完成，去翻译</button></div>
+            </div>
+            <div class="step-card" id="card-translating" onclick="selectCard('translating')">
+                <div class="step-title">04 TRANSLATION</div><div class="step-desc">AI 智能翻译</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <select id="providerSelect" class="input-mini" onchange="onProviderChange()"><option value="DeepSeek">服务商: DeepSeek</option><option value="OpenAI">服务商: OpenAI</option></select>
+                    <input type="password" id="apiKeyInput" class="input-mini" style="margin-top:5px;" placeholder="API Key">
+                    <input type="text" id="modelNameInput" class="input-mini" style="margin-top:5px;" placeholder="Model Name">
+                    <button class="btn-mini" style="background:#333; margin-top:5px;" onclick="saveConfig()">保存配置</button>
+                    <select id="targetLang" class="input-mini" style="margin-top:10px;"><option value="English">翻译为 英语</option><option value="Japanese">翻译为 日语</option></select>
+                    <button id="btn-translate" class="btn-mini" style="margin-top:8px;" onclick="handleTranslate()">开始翻译</button>
+                </div>
+            </div>
+            <div class="step-card" id="card-edit_en" onclick="selectCard('edit_en')">
+                <div class="step-title">05 BILINGUAL</div><div class="step-desc">双语精修</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; font-size:10px; color:#666; margin-bottom:10px; border:1px solid #222;">
+                        <div style="margin-bottom:3px; color:var(--gray);">当前编辑文件：</div><div id="step5SrtPath" style="word-break:break-all; font-family:monospace; line-height:1.4;">-</div>
+                    </div>
+                    <button class="btn-mini" style="background:#333; margin-bottom:8px;" onclick="openSrtFolder()">📂 在 Finder 中打开目录</button>
+                    <button class="btn-mini" style="background:var(--done);" onclick="manualSetStep('burning')">精修完成，去压制</button>
+                </div>
+            </div>
+            <div class="step-card" id="card-burning" onclick="selectCard('burning')">
+                <div class="step-title">06 EXPORT</div><div class="step-desc">压制成品</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <button id="btn-burn" class="btn-mini success" onclick="handleBurn()">立即生成成品</button>
+                    <div id="burnSuccessArea" style="display:none; margin-top:15px; background:rgba(16,185,129,0.1); padding:15px; border-radius:10px; border:1px solid var(--done);">
+                        <div style="font-size:11px; color:var(--done); font-weight:bold; margin-bottom:8px;">✅ 压制成功！成品已就绪</div>
+                        <div id="finalVideoPath" style="font-size:10px; color:#888; word-break:break-all; font-family:monospace; margin-bottom:12px; line-height:1.4;">-</div>
+                        <button class="btn-mini" style="background:#333; width:100%;" onclick="openVideoFolder()">📂 在 Finder 中定位视频</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="center-panel">
+            <div class="video-container" id="videoContainer" onclick="togglePlay()"><video id="mainVideo" controls playsinline></video></div>
+            <div id="fileInfo">No video loaded</div>
+        </div>
+
+        <div class="right-panel">
+            <div class="panel-header">
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span id="syncStatus" style="font-size:10px; color:#555; font-weight:bold;">IDLE</span>
+                    <div style="display:flex; gap:10px; align-items:center;"><span id="saveToast" class="save-toast">SAVED</span><button id="btn-manual-save" class="btn-mini" style="padding:4px 15px;" onclick="saveProject()">SAVE</button></div>
+                </div>
+                <div id="srtPathDisplay" style="font-size:9px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-top:1px solid #222; padding-top:5px;">No SRT loaded</div>
+            </div>
+            <div class="sub-list" id="subContainer"></div>
+        </div>
+    </div>
+
+    <div id="loginModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); z-index:6000; align-items:center; justify-content:center; backdrop-filter:blur(20px);">
+        <div style="background:#1a1a1a; padding:40px; border-radius:24px; text-align:center; border:1px solid #333;">
+            <h3 style="color:var(--bili); margin-top:0;">B站扫码登录</h3>
+            <img id="qrCodeImg" style="width:200px; height:200px; background:#fff; padding:10px; border-radius:12px;" src=""><p id="loginStatusText" style="font-size:13px; margin-top:20px; color:#888;">请使用手机 B站 App 扫码</p>
+            <button class="btn-mini" style="margin-top:20px; width:100%; background:#333;" onclick="closeLoginModal()">取消</button>
+        </div>
+    </div>
+
+    <script>
+        let subtitles = []; let currentStep = "idle"; let isErrorDismissed = false; let pollInterval; let currentVideoPath = "";
+        const video = document.getElementById('mainVideo'); const container = document.getElementById('subContainer'); const statusEl = document.getElementById('syncStatus'); const saveToast = document.getElementById('saveToast');
+
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') { e.preventDefault(); togglePlay(); } });
+
+        function updateUI(data) {
+            currentStep = data.current_step;
+            if (data.video_path && currentVideoPath !== data.video_path) {
+                currentVideoPath = data.video_path; video.src = "/video.mp4?t=" + Date.now(); video.load();
+                document.getElementById('fileInfo').innerText = data.video_path;
+                document.getElementById('srtPathDisplay').innerText = data.srt_path || "No SRT";
+                if(document.getElementById('step5SrtPath')) document.getElementById('step5SrtPath').innerText = data.srt_path || "-";
+            }
+            // ASR 模型状态更新
+            const msi = document.getElementById('modelStatusIcon');
+            const mpt = document.getElementById('modelPathText');
+            if (msi) {
+                const btnDownload = document.getElementById('btn-download-model');
+                if (data.model_downloaded) { 
+                    msi.innerText = "● 已就绪 (本地模型)"; msi.style.color = "var(--done)"; 
+                    if (btnDownload) { btnDownload.disabled = true; btnDownload.style.opacity = "0.5"; }
+                } else { 
+                    msi.innerText = "● 未就绪 (将从云端获取)"; msi.style.color = "var(--accent)"; 
+                    if (btnDownload) { btnDownload.disabled = false; btnDownload.style.opacity = "1"; }
+                }
+                mpt.innerText = data.model_dir || "默认缓存目录";
+                document.getElementById('asrModelSelect').value = data.selected_model || "base";
+            }
+
+            const bb = document.getElementById('btn-burn'); const sa = document.getElementById('burnSuccessArea');
+            if (currentStep === 'done') { if(bb) bb.style.display='none'; if(sa){sa.style.display='block'; document.getElementById('finalVideoPath').innerText=data.video_path;}}
+            else { if(bb) bb.style.display='block'; if(sa) sa.style.display='none';}
+
+            if (data.api_key && !document.getElementById('apiKeyInput').value) {
+                document.getElementById('apiKeyInput').value = data.api_key;
+                document.getElementById('modelNameInput').value = data.llm_model || "";
+                document.getElementById('providerSelect').value = data.llm_provider || "DeepSeek";
+            }
+            const stateToCard = { 'idle':'download','downloading':'download','asr':'asr','edit_zh':'edit_zh','translating':'translating','edit_en':'edit_en','burning':'burning','done':'burning' };
+            const activeCardId = stateToCard[currentStep] || 'download';
+            const workflow = ["downloading", "asr", "edit_zh", "translating", "edit_en", "burning", "done"];
+            const steps = ["download", "asr", "edit_zh", "translating", "edit_en", "burning"];
+            steps.forEach((id) => {
+                const el = document.getElementById('card-' + id); if (!el) return; el.classList.remove('active', 'done');
+                if (id === activeCardId) el.classList.add('active');
+                const sIdx = workflow.indexOf(currentStep); const stepIdx = steps.indexOf(id);
+                if (stepIdx < sIdx || (id === 'download' && data.source_type === 'local')) el.classList.add('done');
+            });
+            const isBusy = data.is_running && ["downloading", "translating", "burning", "asr"].includes(currentStep);
+            if ((data.download_status === 'error' || (currentStep === 'asr' && data.last_error)) && !isErrorDismissed) {
+                overlay.style.display = "flex"; document.getElementById('loaderText').innerText = "FAILED";
+                document.getElementById('loaderHint').innerText = data.last_error; document.getElementById('closeOverlayBtn').style.display = "block"; return;
+            }
+            if (isBusy) {
+                overlay.style.display = "flex"; document.getElementById('closeOverlayBtn').style.display = "none";
+                document.getElementById('loaderText').innerText = currentStep.toUpperCase();
+                if (currentStep === "asr") { 
+                    if (data.asr_progress > 0) {
+                        document.getElementById('loaderHint').innerText = `🚀 正在识别中: ${data.asr_progress}%`;
+                    } else if (data.asr_status_msg) {
+                        document.getElementById('loaderHint').innerText = `🚀 ${data.asr_status_msg}`;
+                    } else {
+                        const sizeMap = {'tiny':'~75MB','base':'~150MB','small':'~500MB','medium':'~1.5GB','large-v3':'~3GB'};
+                        const size = sizeMap[data.selected_model] || '...';
+                        document.getElementById('loaderHint').innerText = data.model_downloaded ? "🚀 正在从本地磁盘加载 AI 模型..." : "📥 正在获取核心模型 " + size + "。首次运行约需 3-10 分钟。";
+                    }
+                } else if (currentStep === "translating") {
+                    document.getElementById('loaderHint').innerText = `🌍 正在翻译中: ${data.translate_progress || 0}%`;
+                } else if (currentStep === "burning") {
+                    document.getElementById('loaderHint').innerText = `🔥 正在将字幕压制进视频... ${data.burn_progress || 0}%`;
+                } else { document.getElementById('loaderHint').innerText = ""; }
+                
+                let pFill = 0;
+                if (currentStep === "translating") pFill = data.translate_progress;
+                else if (currentStep === "asr") pFill = data.asr_progress;
+                else if (currentStep === "burning") pFill = data.burn_progress || 0;
+                else pFill = data.download_progress || 0;
+                document.getElementById('progressFill').style.width = pFill + "%";
+            } else { overlay.style.display = "none"; }
+            const lb = document.getElementById('btn-bili-login'); if (data.logged_in) { lb.innerText = "已授权"; lb.classList.add('success'); } else { lb.innerText = "B站登录"; lb.classList.remove('success'); }
+        }
+        async function onModelChange() {
+            const m = document.getElementById('asrModelSelect').value;
+            await fetch('/api/set-model', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model: m}) });
+            fetchStatus();
+        }
+        async function saveConfig() {
+            const payload = { provider: document.getElementById('providerSelect').value, api_key: document.getElementById('apiKeyInput').value.trim(), llm_model: document.getElementById('modelNameInput').value.trim() };
+            const res = await fetch('/api/set-config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            if (res.ok) alert("配置已保存");
+        }
+        function onProviderChange() {
+            const p = document.getElementById('providerSelect').value; const m = document.getElementById('modelNameInput');
+            if (p === 'DeepSeek') { m.value = "deepseek-chat"; } else if (p === 'OpenAI') { m.value = "gpt-4o"; }
+        }
+        function togglePlay() { if (video.paused) video.play(); else video.pause(); }
+        async function selectCard(s) { isErrorDismissed = false; await fetch('/api/set-step', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({step: s}) }); fetchStatus(); }
+        window.dismissError = function() { isErrorDismissed = true; document.getElementById('overlay').style.display = 'none'; }
+        async function manualSetStep(s) { await fetch('/api/set-step', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({step: s}) }); startStatusPolling(); }
+        async function handleLoad() {
+            const input = document.getElementById('pathInput').value.trim(); if (!input) return;
+            await fetch(input.startsWith('http') ? '/api/download' : '/api/load-local', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(input.startsWith('http')?{url:input}:{video_path:input}) });
+            startStatusPolling();
+        }
+        async function handleDownloadModel() { await fetch('/api/download-model-only', {method:'POST'}); startStatusPolling(); }
+        async function handleASR() { await fetch('/api/start-asr', {method:'POST'}); startStatusPolling(); }
+        async function handleTranslate() { await fetch('/api/translate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({target_lang: document.getElementById('targetLang').value}) }); startStatusPolling(); }
+        async function handleBurn() { await fetch('/api/start-burn', {method:'POST'}); startStatusPolling(); }
+        async function selectLocalFile() { const path = await window.pywebview.api.select_file(); if (path) document.getElementById('pathInput').value = path; }
+        async function selectModelDir() { 
+            await fetch('/api/select-model-dir-dialog', { method: 'POST' }); 
+            startStatusPolling(); 
+        }
+        async function openSrtFolder() { await fetch('/api/open-folder', { method: 'POST' }); }
+        async function openVideoFolder() { await fetch('/api/open-video-folder', { method: 'POST' }); }
+        async function openModelFolder() { await fetch('/api/open-model-folder', { method: 'POST' }); }
+        function startStatusPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                const res = await fetch('/api/status'); const data = await res.json(); updateUI(data);
+                if (["edit_zh", "edit_en", "done", "idle", "asr"].includes(data.current_step) && data.download_status !== 'error') {
+                    if (data.current_step !== "idle" && data.current_step !== "asr") { clearInterval(pollInterval); refreshData(); }
+                }
+            }, 1000);
+        }
+        async function fetchStatus() { const res = await fetch('/api/status'); updateUI(await res.json()); }
+        async function refreshData() { const res = await fetch('/api/subtitles'); subtitles = await res.json(); render(); }
+        function render() {
+            container.innerHTML = subtitles.map((sub, i) => `
+                <div class="sub-row" onclick="jumpTo('${sub.start}')" id="row-${i}">
+                    <div class="sub-meta"><span>#${i+1}</span><span style="color:var(--accent); font-weight:bold;">${sub.start}</span></div>
+                    <textarea oninput="subtitles[${i}].source=this.value; autoSave()">${sub.source}</textarea>
+                    ${["edit_en", "translating", "burning", "done"].includes(currentStep) ? `<textarea class="en" oninput="subtitles[${i}].english=this.value; autoSave()">${sub.english}</textarea>` : ''}
+                </div>
+            `).join('');
+        }
+        function jumpTo(t) { const p = t.replace('.',',').split(','); const [h, m, s] = p[0].split(':').map(parseFloat); video.currentTime = h * 3600 + m * 60 + s + (parseInt(p[1])/1000); video.play(); }
+        let st; function autoSave() { statusEl.innerText = "SYNCING..."; clearTimeout(st); st = setTimeout(saveProject, 1000); }
+        async function saveProject() {
+            const btn = document.getElementById('btn-manual-save'); btn.innerText = "SAVING...";
+            try {
+                await fetch('/api/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(subtitles)});
+                statusEl.innerText="SAVED"; btn.innerText = "✅ SAVED"; saveToast.style.display = "inline-block";
+                setTimeout(() => { btn.innerText = "SAVE"; saveToast.style.display = "none"; }, 2000);
+            } catch(e) { btn.innerText = "FAILED"; }
+        }
+        async function openLoginModal() {
+            const res = await fetch('/api/bili/qrcode'); const data = await res.json();
+            document.getElementById('qrCodeImg').src = 'data:image/png;base64,' + data.qrcode; document.getElementById('loginModal').style.display = 'flex';
+            const poll = setInterval(async () => {
+                const r = await fetch('/api/bili/check-login'); const d = await r.json();
+                if (d.status === 'success') { clearInterval(poll); document.getElementById('loginModal').style.display = 'none'; fetchStatus(); }
+            }, 2000);
+        }
+        function closeLoginModal() { document.getElementById('loginModal').style.display = 'none'; }
+        fetchStatus();
+    </script>
+</body>
+</html>

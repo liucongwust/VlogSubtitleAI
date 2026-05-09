@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>ULTIMATE Subtitle Editor (Native v4.0)</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, system-ui, sans-serif; background: #000; color: #eee; overflow: hidden; }
+        .app-container { display: flex; height: 100vh; width: 100vw; }
+        
+        /* 视频区域 */
+        .video-panel { width: 60%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #222 0%, #000 100%); position: relative; border-right: 1px solid #333; }
+        video { max-height: 95%; max-width: 95%; border-radius: 8px; box-shadow: 0 0 50px rgba(0,0,0,1); }
+        
+        /* 字幕列表区域 */
+        .list-panel { width: 40%; background: #111; overflow-y: auto; scroll-behavior: smooth; }
+        .header { padding: 20px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+        .save-btn { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .save-btn:hover { background: #1d4ed8; }
+        
+        /* 字幕行样式 */
+        .sub-row { padding: 20px; border-bottom: 1px solid #222; transition: 0.3s; }
+        .sub-row.active { background: #1e293b; border-left: 4px solid #3b82f6; }
+        .sub-meta { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 8px; font-family: monospace; }
+        .jump-btn { color: #3b82f6; cursor: pointer; text-decoration: underline; }
+        textarea { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; resize: none; font-size: 14px; box-sizing: border-box; }
+        textarea:focus { outline: none; border-color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="video-panel">
+            <video id="mainVideo" controls playsinline src="/video.mp4"></video>
+        </div>
+        
+        <div class="list-panel" id="listPanel">
+            <div class="header">
+                <span style="font-weight: 900; color: #3b82f6; letter-spacing: 2px;">VLOG CORRECTOR</span>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div id="syncStatus" style="font-size: 11px; color: #666; font-family: monospace;">Ready</div>
+                    <button class="save-btn" onclick="saveProject()">SAVE PROJECT</button>
+                </div>
+            </div>
+            <div id="subContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let subtitles = [];
+        let saveTimer = null;
+        const video = document.getElementById('mainVideo');
+        const container = document.getElementById('subContainer');
+        const statusEl = document.getElementById('syncStatus');
+
+        // 加载字幕
+        console.log('Fetching subtitles...');
+        fetch('/api/subtitles')
+            .then(res => res.json())
+            .then(data => {
+                console.log('Subtitles loaded:', data.length, 'items');
+                subtitles = data;
+                renderSubtitles();
+            })
+            .catch(err => {
+                console.error('Failed to load subtitles:', err);
+                statusEl.innerText = 'Load Error: ' + err.message;
+            });
+
+        function timeToSec(str) {
+            if (!str) return 0;
+            const [hms, ms] = str.replace('.', ',').split(',');
+            const [h, m, s] = hms.split(':').map(parseFloat);
+            return h * 3600 + m * 60 + s + (parseInt(ms) / 1000);
+        }
+
+        function renderSubtitles() {
+            if (subtitles.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; color: #666;">No subtitles found. Check server logs.</div>';
+                return;
+            }
+            container.innerHTML = subtitles.map((sub, idx) => `
+                <div class="sub-row" id="row-${idx}">
+                    <div class="sub-meta">
+                        <span>Line ${idx + 1}</span>
+                        <span class="jump-btn" onclick="jumpTo('${sub.start}')">${sub.start}</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <textarea oninput="updateText(${idx}, this.value)">${sub.source}</textarea>
+                        <textarea style="background: #111; color: #999; border-color: #222;" placeholder="Translate to English..." oninput="updateEnglish(${idx}, this.value)">${sub.english || ''}</textarea>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function jumpTo(timeStr) {
+            video.currentTime = timeToSec(timeStr);
+            video.play();
+        }
+
+        // 自动滚动高亮 (已恢复)
+        video.ontimeupdate = () => {
+            const now = video.currentTime;
+            const idx = subtitles.findIndex(s => now >= timeToSec(s.start) && now <= timeToSec(s.end));
+            
+            if (idx !== -1) {
+                const activeRow = document.getElementById('row-' + idx);
+                if (activeRow && !activeRow.classList.contains('active')) {
+                    document.querySelectorAll('.sub-row').forEach(r => r.classList.remove('active'));
+                    activeRow.classList.add('active');
+                    activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        };
+
+        function updateText(idx, val) {
+            subtitles[idx].source = val;
+            triggerAutoSave();
+        }
+
+        function updateEnglish(idx, val) {
+            subtitles[idx].english = val;
+            triggerAutoSave();
+        }
+
+        // 防抖自动保存逻辑
+        function triggerAutoSave() {
+            statusEl.innerText = 'Changes detected...';
+            statusEl.style.color = '#f59e0b';
+            
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                saveProject();
+            }, 800); // 停止输入 800ms 后保存
+        }
+
+        async function saveProject() {
+            statusEl.innerText = 'Saving to server...';
+            try {
+                const res = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(subtitles)
+                });
+                if (res.ok) {
+                    statusEl.innerText = 'All changes saved';
+                    statusEl.style.color = '#10b981';
+                } else {
+                    throw new Error('Server error');
+                }
+            } catch (err) {
+                statusEl.innerText = 'Save FAILED: ' + err.message;
+                statusEl.style.color = '#ef4444';
+            }
+        }
+    </script>
+</body>
+</html>

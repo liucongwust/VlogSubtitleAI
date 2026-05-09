@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+ENV/
+
+# Build and Packaging
+build/
+dist/
+*.spec
+bin/
+
+# Project Specific
+models/
+data/downloads/
+data/*.mp4
+data/*.srt
+data/*.json
+!data/config.json
+*.log
+.DS_Store
