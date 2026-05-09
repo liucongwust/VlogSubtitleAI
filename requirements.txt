@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pywebview
+pyinstaller
+torch
+faster-whisper
+pysrt
+yt-dlp
+openai
+qrcode
+pillow
+bilibili-api-python
