@@ -146,7 +146,7 @@
         </div>
 
         <div class="center-panel">
-            <div class="video-container" id="videoContainer" onclick="togglePlay()"><video id="mainVideo" controls playsinline></video></div>
+            <div class="video-container" id="videoContainer"><video id="mainVideo" controls playsinline onclick="togglePlay(event)"></video></div>
             <div id="fileInfo">No video loaded</div>
         </div>
 
@@ -266,7 +266,13 @@
             const p = document.getElementById('providerSelect').value; const m = document.getElementById('modelNameInput');
             if (p === 'DeepSeek') { m.value = "deepseek-chat"; } else if (p === 'OpenAI') { m.value = "gpt-4o"; }
         }
-        function togglePlay() { if (video.paused) video.play(); else video.pause(); }
+        function togglePlay(e) { 
+            if (e && e.target === video) {
+                const rect = video.getBoundingClientRect();
+                if (e.clientY > rect.bottom - 50) return; // 忽略底部控制栏的点击
+            }
+            if (video.paused) video.play(); else video.pause(); 
+        }
         async function selectCard(s) { isErrorDismissed = false; await fetch('/api/set-step', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({step: s}) }); fetchStatus(); }
         window.dismissError = function() { isErrorDismissed = true; document.getElementById('overlay').style.display = 'none'; }
         async function manualSetStep(s) { await fetch('/api/set-step', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({step: s}) }); startStatusPolling(); }

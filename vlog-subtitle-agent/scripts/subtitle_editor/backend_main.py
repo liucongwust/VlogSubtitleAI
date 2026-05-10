@@ -336,10 +336,18 @@ async def start_burn():
 async def start_download(req: dict):
     url = req.get("url")
     def _run():
+        def download_hook(d):
+            if d['status'] == 'downloading':
+                total = d.get('total_bytes') or d.get('total_bytes_estimate')
+                if total:
+                    state.download_progress = int((d['downloaded_bytes'] / total) * 100)
+            elif d['status'] == 'finished':
+                state.download_progress = 100
         try:
             state.source_type = "url"; state.download_status = "downloading"; state.current_step = "downloading"
             output_dir = os.path.join(DATA_DIR, "downloads"); os.makedirs(output_dir, exist_ok=True)
-            ydl_opts = {'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 'outtmpl': f'{output_dir}/%(title)s.%(ext)s', 'progress_hooks': [download_hook], 'ffmpeg_location': FFMPEG_EXE, 'nocheckcertificate': True, 'http_headers': {'Referer': 'https://www.bilibili.com/'}}
+            # 强制优先下载 H.264 (avc) 编码，防止 B 站下载 AV1 导致 macOS WebView 播放黑屏
+            ydl_opts = {'format': 'bestvideo[vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 'outtmpl': f'{output_dir}/%(title)s.%(ext)s', 'progress_hooks': [download_hook], 'ffmpeg_location': FFMPEG_EXE, 'nocheckcertificate': True, 'http_headers': {'Referer': 'https://www.bilibili.com/'}}
             if os.path.exists(COOKIE_FILE): ydl_opts['cookiefile'] = COOKIE_FILE
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True); state.video_path = ydl.prepare_filename(info)
