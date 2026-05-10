@@ -114,7 +114,7 @@ if __name__ == '__main__':
     # 3. 将 window 引用回填给 api 实例
     api.set_window(window)
 
-    # 尝试在窗口加载后动态设置 macOS Dock 图标
+    # 尝试在窗口加载后动态设置 macOS Dock 图标（必须在主线程执行）
     def set_mac_icon():
         try:
             import objc
@@ -124,7 +124,9 @@ if __name__ == '__main__':
             if os.path.exists(logo_path):
                 img = NSImage.alloc().initWithContentsOfFile_(logo_path)
                 if img:
-                    app_inst.setApplicationIconImage_(img)
+                    app_inst.performSelectorOnMainThread_withObject_waitUntilDone_(
+                        "setApplicationIconImage:", img, False
+                    )
         except Exception:
             pass
             
