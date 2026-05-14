@@ -129,11 +129,17 @@
                         <div style="margin-bottom:3px; color:var(--gray);">当前编辑文件：</div><div id="step5SrtPath" style="word-break:break-all; font-family:monospace; line-height:1.4;">-</div>
                     </div>
                     <button class="btn-mini" style="background:#333; margin-bottom:8px;" onclick="openSrtFolder()">📂 在 Finder 中打开目录</button>
-                    <button class="btn-mini" style="background:var(--done);" onclick="manualSetStep('burning')">精修完成，去压制</button>
+                    <button class="btn-mini" style="background:var(--done);" onclick="manualSetStep('metadata')">精修完成，去提取元数据</button>
+                </div>
+            </div>
+            <div class="step-card" id="card-metadata" onclick="selectCard('metadata')">
+                <div class="step-title">06 METADATA</div><div class="step-desc">AI 爆款提取</div>
+                <div class="step-controls" onclick="event.stopPropagation()">
+                    <button id="btn-extract-metadata" class="btn-mini" style="margin-top:8px;" onclick="handleExtractMetadata()">智能提取标题与摘要</button>
                 </div>
             </div>
             <div class="step-card" id="card-burning" onclick="selectCard('burning')">
-                <div class="step-title">06 EXPORT</div><div class="step-desc">压制成品</div>
+                <div class="step-title">07 EXPORT</div><div class="step-desc">压制成品</div>
                 <div class="step-controls" onclick="event.stopPropagation()">
                     <button id="btn-burn" class="btn-mini success" onclick="handleBurn()">立即生成成品</button>
                     <div id="burnSuccessArea" style="display:none; margin-top:15px; background:rgba(16,185,129,0.1); padding:15px; border-radius:10px; border:1px solid var(--done);">
@@ -209,17 +215,17 @@
                 document.getElementById('modelNameInput').value = data.llm_model || "";
                 document.getElementById('providerSelect').value = data.llm_provider || "DeepSeek";
             }
-            const stateToCard = { 'idle':'download','downloading':'download','asr':'asr','edit_zh':'edit_zh','translating':'translating','edit_en':'edit_en','burning':'burning','done':'burning' };
+            const stateToCard = { 'idle':'download','downloading':'download','asr':'asr','edit_zh':'edit_zh','translating':'translating','edit_en':'edit_en','metadata':'metadata','metadata_gen':'metadata','metadata_review':'metadata','burning':'burning','done':'burning' };
             const activeCardId = stateToCard[currentStep] || 'download';
-            const workflow = ["downloading", "asr", "edit_zh", "translating", "edit_en", "burning", "done"];
-            const steps = ["download", "asr", "edit_zh", "translating", "edit_en", "burning"];
+            const workflow = ["downloading", "asr", "edit_zh", "translating", "edit_en", "metadata", "metadata_gen", "metadata_review", "burning", "done"];
+            const steps = ["download", "asr", "edit_zh", "translating", "edit_en", "metadata", "burning"];
             steps.forEach((id) => {
                 const el = document.getElementById('card-' + id); if (!el) return; el.classList.remove('active', 'done');
                 if (id === activeCardId) el.classList.add('active');
                 const sIdx = workflow.indexOf(currentStep); const stepIdx = steps.indexOf(id);
                 if (stepIdx < sIdx || (id === 'download' && data.source_type === 'local')) el.classList.add('done');
             });
-            const isBusy = data.is_running && ["downloading", "translating", "burning", "asr"].includes(currentStep);
+            const isBusy = data.is_running && ["downloading", "translating", "metadata_gen", "burning", "asr"].includes(currentStep);
             if ((data.download_status === 'error' || (currentStep === 'asr' && data.last_error)) && !isErrorDismissed) {
                 overlay.style.display = "flex"; document.getElementById('loaderText').innerText = "FAILED";
                 document.getElementById('loaderHint').innerText = data.last_error; document.getElementById('closeOverlayBtn').style.display = "block"; return;
@@ -239,12 +245,15 @@
                     }
                 } else if (currentStep === "translating") {
                     document.getElementById('loaderHint').innerText = `🌍 正在翻译中: ${data.translate_progress || 0}%`;
+                } else if (currentStep === "metadata_gen") {
+                    document.getElementById('loaderHint').innerText = `✨ 正在利用 AI 提取爆款元数据...`;
                 } else if (currentStep === "burning") {
-                    document.getElementById('loaderHint').innerText = `🔥 正在将字幕压制进视频... ${data.burn_progress || 0}%`;
+                    document.getElementById('loaderHint').innerText = `🔥 正在将字幕与标题压制进视频... ${data.burn_progress || 0}%`;
                 } else { document.getElementById('loaderHint').innerText = ""; }
                 
                 let pFill = 0;
                 if (currentStep === "translating") pFill = data.translate_progress;
+                else if (currentStep === "metadata_gen") pFill = data.metadata_progress || 0;
                 else if (currentStep === "asr") pFill = data.asr_progress;
                 else if (currentStep === "burning") pFill = data.burn_progress || 0;
                 else pFill = data.download_progress || 0;
@@ -286,6 +295,20 @@
         async function handleTranslate() { await fetch('/api/translate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({target_lang: document.getElementById('targetLang').value}) }); startStatusPolling(); }
         async function handleBurn() { await fetch('/api/start-burn', {method:'POST'}); startStatusPolling(); }
         async function selectLocalFile() { const path = await window.pywebview.api.select_file(); if (path) document.getElementById('pathInput').value = path; }
+        async function handleExtractMetadata() { 
+            const lang = document.getElementById('targetLang').value;
+            await fetch('/api/generate-metadata', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ lang: lang })
+            }); 
+            startStatusPolling(); 
+        }
+        async function confirmTitleAndBurn() {
+            const selected = document.querySelector('input[name="video_title"]:checked').value;
+            await fetch('/api/set-title', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({title: selected}) });
+            handleBurn();
+        }
         async function selectModelDir() { 
             await fetch('/api/select-model-dir-dialog', { method: 'POST' }); 
             startStatusPolling(); 
@@ -297,21 +320,84 @@
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(async () => {
                 const res = await fetch('/api/status'); const data = await res.json(); updateUI(data);
-                if (["edit_zh", "edit_en", "done", "idle", "asr"].includes(data.current_step) && data.download_status !== 'error') {
+                if (["edit_zh", "edit_en", "done", "idle", "asr", "metadata_review"].includes(data.current_step) && data.download_status !== 'error') {
                     if (data.current_step !== "idle" && data.current_step !== "asr") { clearInterval(pollInterval); refreshData(); }
                 }
             }, 1000);
         }
         async function fetchStatus() { const res = await fetch('/api/status'); updateUI(await res.json()); }
-        async function refreshData() { const res = await fetch('/api/subtitles'); subtitles = await res.json(); render(); }
+        let metadataResult = null;
+        async function refreshData() { 
+            if (currentStep === "metadata_review") {
+                try {
+                    const res = await fetch('/api/status');
+                    const statusData = await res.json();
+                    if (statusData.metadata_result) metadataResult = statusData.metadata_result;
+                } catch(e) {}
+            }
+            const res = await fetch('/api/subtitles'); subtitles = await res.json(); render(); 
+        }
         function render() {
+            if (["metadata", "metadata_gen", "metadata_review"].includes(currentStep)) {
+                if (currentStep === "metadata" || currentStep === "metadata_gen") {
+                    container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--gray);">等待提取元数据...</div>`;
+                } else if (currentStep === "metadata_review" && metadataResult) {
+                    const titlesHtml = metadataResult.titles.map((t, i) => `
+                        <div style="margin-bottom:10px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">
+                            <label style="display:flex; align-items:center; cursor:pointer;">
+                                <input type="radio" name="video_title" value="${t}" style="margin-right:10px;">
+                                <div>
+                                    <div style="font-weight:bold; color:var(--text);">${t}</div>
+                                    <div style="font-size:12px; color:var(--gray); margin-top:4px;">${(metadataResult.en_titles && metadataResult.en_titles[i]) ? metadataResult.en_titles[i] : ''}</div>
+                                </div>
+                            </label>
+                        </div>
+                    `).join('');
+                    
+                    container.innerHTML = `
+                        <div style="padding:20px;">
+                            <h3 style="margin-top:0; color:var(--accent);">🔥 推荐爆款标题 (请选择)</h3>
+                            ${titlesHtml}
+                            <div style="margin-bottom:20px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">
+                                <label style="display:flex; align-items:center; cursor:pointer;">
+                                    <input type="radio" name="video_title" value="" checked style="margin-right:10px;">
+                                    <div style="font-weight:bold; color:var(--text);">不使用推荐标题，仅压制</div>
+                                </label>
+                            </div>
+                            
+                            <h3 style="color:var(--accent);">📝 视频摘要</h3>
+                            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; line-height:1.6;">${metadataResult.summary}</div>
+                            
+                            <h3 style="color:var(--accent); margin-top:20px;">🏷️ 热门关键词</h3>
+                            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                                ${(metadataResult.keywords || []).map(k => `<span style="background:var(--accent); color:#000; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:bold;">#${k}</span>`).join('')}
+                            </div>
+                            
+                            <div style="margin-top:30px; text-align:right;">
+                                <button class="btn-mini success" style="font-size:14px; padding:10px 20px;" onclick="confirmTitleAndBurn()">确定选择并开始压制</button>
+                            </div>
+                        </div>
+                    `;
+                }
+                return;
+            }
             container.innerHTML = subtitles.map((sub, i) => `
-                <div class="sub-row" onclick="jumpTo('${sub.start}')" id="row-${i}">
-                    <div class="sub-meta"><span>#${i+1}</span><span style="color:var(--accent); font-weight:bold;">${sub.start}</span></div>
+                <div class="sub-row" id="row-${i}">
+                    <div class="sub-meta" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <div onclick="jumpTo('${sub.start}')" style="cursor:pointer; display:flex; align-items:center; flex-grow:1;">
+                            <span>#${i+1}</span><span style="color:var(--accent); font-weight:bold; margin-left:8px;">${sub.start}</span>
+                        </div>
+                        <button class="btn-mini" style="padding:2px 6px; background:rgba(255,0,0,0.1); color:#ff4d4f; border:1px solid rgba(255,0,0,0.3); border-radius:4px; font-size:10px; margin-left:10px; cursor:pointer;" onclick="deleteSub(${i}); event.stopPropagation();">删除</button>
+                    </div>
                     <textarea oninput="subtitles[${i}].source=this.value; autoSave()">${sub.source}</textarea>
                     ${["edit_en", "translating", "burning", "done"].includes(currentStep) ? `<textarea class="en" oninput="subtitles[${i}].english=this.value; autoSave()">${sub.english}</textarea>` : ''}
                 </div>
             `).join('');
+        }
+        async function deleteSub(i) {
+            subtitles.splice(i, 1);
+            render();
+            autoSave();
         }
         function jumpTo(t) { const p = t.replace('.',',').split(','); const [h, m, s] = p[0].split(':').map(parseFloat); video.currentTime = h * 3600 + m * 60 + s + (parseInt(p[1])/1000); video.play(); }
         let st; function autoSave() { statusEl.innerText = "SYNCING..."; clearTimeout(st); st = setTimeout(saveProject, 1000); }
